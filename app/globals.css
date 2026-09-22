@@ -1,15 +1,17 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "MARshall Bahnschrift";
+  src: url("/fonts/BAHNSCHRIFT%202.TTF") format("truetype");
+  font-weight: 300 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-marshall: "MARshall Bahnschrift", Bahnschrift, "Segoe UI", system-ui, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -19,8 +21,19 @@
   }
 }
 
+html, body {
+  background: var(--marshall-bg-fallback, #050607);
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-marshall);
+  background-image: var(--marshall-bg);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+body,
+body * {
+  font-family: var(--font-marshall) !important;
 }
