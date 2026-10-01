@@ -2,12 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { prepareBootAudio } from "@/lib/bootAudio";
 import ApplyWallpaper from "@/components/ApplyWallpaper";
 import DecimalInput from "@/components/DecimalInput";
 import { INVENTORY_KEY, loadSetupSettings, n, uid, type InventoryItem } from "@/lib/setupData";
 import {
   MARSHAL_INVENTORY_DASHBOARD_MESSAGE_KEY,
   MARSHAL_INVENTORY_INCIDENT_KEY,
+  MARSHAL_INVENTORY_INTRODUCED_KEY,
   MARSHAL_INVENTORY_REPEAT_KEY,
   PUMP_SPRAYER_AUDIO_TRIGGERED_KEY,
   PUMP_SPRAYER_AUDIO_URL,
@@ -68,6 +71,7 @@ function inventorySassEnabled() {
 }
 
 export default function InventoryPage() {
+  const router = useRouter();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<CategoryFilter>("all");
@@ -107,9 +111,12 @@ export default function InventoryPage() {
     setSavedAt(new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
   };
 
-  const showEgg = (message: string, button: string) =>
+  const showEgg = (message: string, button: string, onContinue?: () => void) =>
     new Promise<void>((resolve) => {
-      eggResolver.current = resolve;
+      eggResolver.current = () => {
+        onContinue?.();
+        resolve();
+      };
       setEggModal({ message, button });
     });
 
@@ -164,7 +171,7 @@ export default function InventoryPage() {
     );
     setEditingId(null);
     setDraft(blankItem());
-    window.location.assign("/?marshalInventoryBoot=1");
+    router.push("/?marshalInventoryBoot=1");
   };
 
   const handleMarshalItem = async (item: InventoryItem) => {
@@ -185,7 +192,10 @@ export default function InventoryPage() {
       return false;
     }
 
-    await showEgg("Hey! I'm not inventory!", "Okay, okay");
+    const introduced = localStorage.getItem(MARSHAL_INVENTORY_INTRODUCED_KEY) === "true" ||
+      items.some((existing) => isMarshalInventoryName(existing.name));
+    localStorage.setItem(MARSHAL_INVENTORY_INTRODUCED_KEY, "true");
+    if (!introduced) await showEgg("Hey! I'm not inventory!", "Okay, okay");
 
     if (item.quantity === 0) {
       await showEgg("D:", "Undo");
@@ -193,7 +203,7 @@ export default function InventoryPage() {
     }
 
     if (item.quantity >= 2) {
-      await showEgg("Oh cool", "Nice");
+      await showEgg("Oh cool", "Nice", prepareBootAudio);
       showWaitThenBoot(editingId ?? item.id);
       return false;
     }

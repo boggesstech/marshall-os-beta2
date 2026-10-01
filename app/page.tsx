@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getBootAudio, playBootAudio, prepareBootAudio } from "@/lib/bootAudio";
 
 type Phase = "ready" | "booting";
 type BootMessage = { title: string; roll: string };
@@ -89,10 +90,9 @@ export default function Home() {
       }
 
       // Start audio (must be triggered by user gesture; phase is set from a click)
-      audioRef.current = new Audio("/boot/boot-sound.mp3");
-      audioRef.current.preload = "auto";
+      audioRef.current = getBootAudio();
       try {
-        await audioRef.current.play();
+        await playBootAudio();
       } catch {
         // Audio may fail silently if the browser blocks it; video still runs
       }
@@ -127,6 +127,7 @@ export default function Home() {
 
   const startBoot = () => {
     if (phase !== "ready") return;
+    prepareBootAudio();
     setPhase("booting");
   };
 

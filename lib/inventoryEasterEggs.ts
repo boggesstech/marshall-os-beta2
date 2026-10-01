@@ -1,6 +1,7 @@
 import type { InventoryItem } from "@/lib/setupData";
 
 export const MARSHAL_INVENTORY_INCIDENT_KEY = "marshalInventoryIncident";
+export const MARSHAL_INVENTORY_INTRODUCED_KEY = "marshalInventoryIntroduced";
 export const MARSHAL_INVENTORY_REPEAT_KEY = "marshalInventoryRepeatAttempts";
 export const MARSHAL_INVENTORY_DASHBOARD_MESSAGE_KEY = "marshalInventoryDashboardMessage";
 export const PUMP_SPRAYERS_DESTROYED_KEY = "pumpSprayersDestroyed";
