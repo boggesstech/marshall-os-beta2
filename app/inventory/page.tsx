@@ -1,10 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import ApplyWallpaper from "@/components/ApplyWallpaper";
 import DecimalInput from "@/components/DecimalInput";
-import { INVENTORY_KEY, n, uid, type InventoryItem } from "@/lib/setupData";
+import { INVENTORY_KEY, loadSetupSettings, n, uid, type InventoryItem } from "@/lib/setupData";
+import {
+  MARSHAL_INVENTORY_DASHBOARD_MESSAGE_KEY,
+  MARSHAL_INVENTORY_INCIDENT_KEY,
+  MARSHAL_INVENTORY_REPEAT_KEY,
+  PUMP_SPRAYER_AUDIO_TRIGGERED_KEY,
+  PUMP_SPRAYER_AUDIO_URL,
+  genericInventoryEgg,
+  isMarshalInventoryName,
+  isPumpSprayerInventoryName,
+  pumpSprayerInventoryEgg,
+} from "@/lib/inventoryEasterEggs";
 
 type CategoryFilter = "all" | InventoryItem["category"];
 
@@ -52,6 +63,10 @@ function money(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value || 0);
 }
 
+function inventorySassEnabled() {
+  return loadSetupSettings()?.ui?.sassEnabled ?? true;
+}
+
 export default function InventoryPage() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [query, setQuery] = useState("");
@@ -60,6 +75,8 @@ export default function InventoryPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<InventoryItem>(() => blankItem());
   const [savedAt, setSavedAt] = useState("");
+  const [eggModal, setEggModal] = useState<{ message: string; button: string } | null>(null);
+  const eggResolver = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const id = window.setTimeout(() => setItems(loadInventory()), 0);
@@ -90,6 +107,43 @@ export default function InventoryPage() {
     setSavedAt(new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
   };
 
+  const showEgg = (message: string, button: string) =>
+    new Promise<void>((resolve) => {
+      eggResolver.current = resolve;
+      setEggModal({ message, button });
+    });
+
+  const showWaitThenBoot = (sourceId?: string) => {
+    eggResolver.current = null;
+    setEggModal({ message: "WAIT—", button: "" });
+    window.setTimeout(() => {
+      setEggModal(null);
+      startMarshalBoot(sourceId);
+    }, 850);
+  };
+
+  const closeEgg = () => {
+    const resolve = eggResolver.current;
+    eggResolver.current = null;
+    setEggModal(null);
+    resolve?.();
+  };
+
+  const showEggSequence = async (egg: NonNullable<ReturnType<typeof genericInventoryEgg>>) => {
+    const sequence = Array.isArray(egg) ? egg : [egg];
+    for (const item of sequence) {
+      await showEgg(item.message, item.button);
+    }
+  };
+
+  const playPumpSprayerAudioOnce = () => {
+    if (localStorage.getItem(PUMP_SPRAYER_AUDIO_TRIGGERED_KEY) === "true") return;
+    localStorage.setItem(PUMP_SPRAYER_AUDIO_TRIGGERED_KEY, "true");
+    const audio = new Audio(PUMP_SPRAYER_AUDIO_URL);
+    audio.volume = 0.9;
+    audio.play().catch(() => {});
+  };
+
   const startAdd = (category: InventoryItem["category"]) => {
     setEditingId(null);
     setDraft(blankItem(category));
@@ -100,12 +154,111 @@ export default function InventoryPage() {
     setDraft(item);
   };
 
-  const saveDraft = () => {
+  const startMarshalBoot = (sourceId?: string) => {
+    const withoutMarshal = items.filter((item) => item.id !== sourceId && !isMarshalInventoryName(item.name));
+    persist(withoutMarshal);
+    localStorage.setItem(MARSHAL_INVENTORY_INCIDENT_KEY, "true");
+    localStorage.setItem(
+      MARSHAL_INVENTORY_DASHBOARD_MESSAGE_KEY,
+      "Close one. I removed Marshal out of the list, it's just too risky."
+    );
+    setEditingId(null);
+    setDraft(blankItem());
+    window.location.assign("/?marshalInventoryBoot=1");
+  };
+
+  const handleMarshalItem = async (item: InventoryItem) => {
+    const hadIncident = localStorage.getItem(MARSHAL_INVENTORY_INCIDENT_KEY) === "true";
+
+    if (hadIncident) {
+      const attempts = Number(localStorage.getItem(MARSHAL_INVENTORY_REPEAT_KEY) ?? "0") + 1;
+      localStorage.setItem(MARSHAL_INVENTORY_REPEAT_KEY, String(attempts));
+
+      if (attempts === 1) {
+        await showEgg("Oh nonononononononono. Not again.", ":)");
+        await showEgg("Dude.", "What?");
+        await showEgg("You KNOW what.", "Add Marshal");
+        await showEgg("No.", "Okay");
+      } else {
+        await showEgg("I'm not doing this with you.", "Fine.");
+      }
+      return false;
+    }
+
+    await showEgg("Hey! I'm not inventory!", "Okay, okay");
+
+    if (item.quantity === 0) {
+      await showEgg("D:", "Undo");
+      return false;
+    }
+
+    if (item.quantity >= 2) {
+      await showEgg("Oh cool", "Nice");
+      showWaitThenBoot(editingId ?? item.id);
+      return false;
+    }
+
+    return true;
+  };
+
+  const saveDraft = async () => {
     const clean = {
       ...draft,
       name: draft.name.trim(),
       unit: draft.unit.trim() || "count",
     };
+
+    if (!clean.name) {
+      await showEgg("Item name is required.", "Okay");
+      return;
+    }
+
+    if (clean.quantity < 0) {
+      await showEgg("Quantity cannot be negative.", "Okay");
+      return;
+    }
+
+    const sassEnabled = inventorySassEnabled();
+    if (!sassEnabled) {
+      const savedItem = editingId ? clean : { ...clean, id: uid() };
+      const next = editingId
+        ? items.map((item) => (item.id === editingId ? savedItem : item))
+        : [...items, savedItem];
+      persist(next);
+      setEditingId(savedItem.id);
+      setDraft(savedItem);
+      return;
+    }
+
+    const validationEgg = genericInventoryEgg(clean);
+    const blocksSave = Array.isArray(validationEgg)
+      ? validationEgg.some((egg) => egg.blocksSave)
+      : Boolean(validationEgg?.blocksSave);
+
+    if (validationEgg && blocksSave) {
+      await showEggSequence(validationEgg);
+      return;
+    }
+
+    if (isMarshalInventoryName(clean.name)) {
+      const shouldSaveMarshal = await handleMarshalItem(clean);
+      if (!shouldSaveMarshal) return;
+    } else if (editingId && isPumpSprayerInventoryName(clean.name)) {
+      const previous = items.find((item) => item.id === editingId);
+      const pumpEgg = previous ? pumpSprayerInventoryEgg(Number(previous.quantity), Number(clean.quantity)) : null;
+      if (pumpEgg) {
+        const sequence = Array.isArray(pumpEgg) ? pumpEgg : [pumpEgg];
+        if (sequence.some((egg) => egg.message === "STOP BREAKING THE LAW, ASSHOLE!")) {
+          playPumpSprayerAudioOnce();
+        }
+        await showEggSequence(pumpEgg);
+      } else if (validationEgg) {
+        await showEggSequence(validationEgg);
+      }
+    } else if (validationEgg) {
+      await showEggSequence(validationEgg);
+    }
+
     const savedItem = editingId ? clean : { ...clean, id: uid() };
     const next = editingId
       ? items.map((item) => (item.id === editingId ? savedItem : item))
@@ -228,6 +381,21 @@ export default function InventoryPage() {
       </div>
 
       <style jsx global>{styles}</style>
+
+      {eggModal && (
+        <div className="modalShade" role="dialog" aria-modal="true" aria-label="Inventory message">
+          <div className="modal">
+            <div className="modalBrand">MARSHAL INVENTORY</div>
+            <div className="modalText">{eggModal.message}</div>
+            {eggModal.button && (
+              <div className="modalActions">
+                <button className="btn primary" autoFocus onClick={closeEgg}>{eggModal.button}</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
     </main>
   );
 }
@@ -312,6 +480,11 @@ const styles = `
   .label { display: grid; gap: 7px; font-size: 13px; font-weight: 850; }
   .weighBox { display: grid; gap: 8px; align-content: end; }
   .saved { align-self: center; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.08); border-radius: 999px; padding: 8px 10px; font-size: 12px; font-weight: 900; }
+  .modalShade { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.64); display: grid; place-items: center; padding: 18px; }
+  .modal { width: min(440px, 100%); border: 1px solid rgba(255,255,255,.16); background: rgba(8,10,14,.96); border-radius: 16px; padding: 18px; display: grid; gap: 14px; box-shadow: 0 24px 90px rgba(0,0,0,.5); }
+  .modalBrand { font-size: 11px; letter-spacing: 2px; opacity: .68; text-transform: uppercase; font-weight: 950; }
+  .modalText { font-size: 24px; line-height: 1.1; font-weight: 1000; }
+  .modalActions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
   button:disabled { opacity: .5; cursor: not-allowed; }
   @media (max-width: 980px) { .workspace { grid-template-columns: 1fr; } .listPanel { min-height: auto; } .editorPanel { position: static; max-height: none; } }
   @media (max-width: 820px) { .wrap { padding: 14px; } .head, .itemRow, .panelTop { display: grid; } .controls, .formGrid { grid-template-columns: 1fr; } .topActions, .rowActions, .actions, .filters { justify-content: stretch; } .btn, .x { flex: 1 1 auto; } }

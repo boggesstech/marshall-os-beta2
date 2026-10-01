@@ -197,7 +197,7 @@ export default function SetupPage() {
         taxPercent,
       },
     },
-    ui: { wallpaper, sound },
+    ui: { wallpaper, sound, sassEnabled: true },
     meta: { createdAt: new Date().toISOString() },
   });
 

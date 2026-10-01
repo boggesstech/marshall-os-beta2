@@ -319,6 +319,7 @@ export default function SettingsManagePage() {
             <ToggleRow label="Inventory" text="Enable inventory and material usage tracking." value={settings.inventory.enabled} onChange={(enabled) => updateSettings((current) => ({ ...current, inventory: { ...current.inventory, enabled, mode: enabled ? "now" : "skip" } }))} />
             <ToggleRow label="Consumables / materials" text="Track materials, paint, discs, tape, and supplies." value={settings.inventory.enableConsumables} onChange={(enableConsumables) => updateSettings((current) => ({ ...current, inventory: { ...current.inventory, enableConsumables } }))} />
             <ToggleRow label="Parts" text="Track replacement parts and job hardware." value={settings.inventory.enableParts} onChange={(enableParts) => updateSettings((current) => ({ ...current, inventory: { ...current.inventory, enableParts } }))} />
+            <ToggleRow label="MARshall sass" text="Allow Inventory Easter egg popups and smart-mouth reactions." value={settings.ui.sassEnabled ?? true} onChange={(sassEnabled) => updateSettings((current) => ({ ...current, ui: { ...current.ui, sassEnabled } }))} />
           </div>
         </section>
       )}

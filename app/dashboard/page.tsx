@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import ApplyWallpaper from "@/components/ApplyWallpaper";
+import MarshalBreakout from "@/components/easter-eggs/MarshalBreakout";
 import type { Settings } from "@/lib/setupData";
+import { MARSHAL_INVENTORY_DASHBOARD_MESSAGE_KEY } from "@/lib/inventoryEasterEggs";
 
 const SETTINGS_KEY = "marshall_settings_v1";
 const INVENTORY_KEY = "marshall_inventory_v1";
@@ -132,9 +134,13 @@ function LiveClock() {
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData>(emptyData);
   const [hiddenIds, setHiddenIds] = useState<Record<string, true>>({});
+  const [inventoryMessage, setInventoryMessage] = useState("");
 
   useEffect(() => {
-    const id = window.setTimeout(() => setData(loadDashboardData()), 0);
+    const id = window.setTimeout(() => {
+      setData(loadDashboardData());
+      setInventoryMessage(localStorage.getItem(MARSHAL_INVENTORY_DASHBOARD_MESSAGE_KEY) ?? "");
+    }, 0);
     return () => window.clearTimeout(id);
   }, []);
 
@@ -156,6 +162,7 @@ export default function DashboardPage() {
   return (
     <main className="wrap">
       <ApplyWallpaper />
+      <MarshalBreakout />
 
       <header className="topbar">
         <div className="brand">
@@ -234,6 +241,27 @@ export default function DashboardPage() {
           </div>
         </aside>
       </section>
+
+      {inventoryMessage && (
+        <div className="modalShade" role="dialog" aria-modal="true" aria-label="Inventory message">
+          <div className="modal">
+            <div className="micro">MARSHAL INVENTORY</div>
+            <div className="modalText">{inventoryMessage}</div>
+            <div className="modalActions">
+              <button
+                className="topBtn"
+                autoFocus
+                onClick={() => {
+                  localStorage.removeItem(MARSHAL_INVENTORY_DASHBOARD_MESSAGE_KEY);
+                  setInventoryMessage("");
+                }}
+              >
+                Understandable
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx global>{styles}</style>
     </main>
@@ -315,5 +343,9 @@ const styles = `
   .notice p { font-size: 12.5px; margin: 0; }
   .clearBtn, .hideBtn { padding: 8px 10px; font-size: 12px; }
   .empty { opacity: .75; font-size: 13px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); border-radius: 10px; padding: 12px; }
+  .modalShade { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.64); display: grid; place-items: center; padding: 18px; }
+  .modal { width: min(520px, 100%); border: 1px solid rgba(255,255,255,.16); background: rgba(8,10,14,.96); border-radius: 16px; padding: 18px; display: grid; gap: 14px; box-shadow: 0 24px 90px rgba(0,0,0,.5); }
+  .modalText { font-size: 24px; line-height: 1.12; font-weight: 1000; }
+  .modalActions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
   @media (max-width: 980px) { .wrap { padding: 12px; } .topbar, .heroPanel, .mainGrid { grid-template-columns: 1fr; display: grid; } .clock, .topActions { justify-self: start; } .heroActions { justify-content: stretch; } .heroBtn, .topBtn { flex: 1 1 auto; } .metrics, .tiles { grid-template-columns: 1fr; } h1 { font-size: 40px; } }
 `;

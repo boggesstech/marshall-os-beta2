@@ -123,6 +123,7 @@ export type Settings = {
   ui: {
     wallpaper: WallpaperId;
     sound: SoundId;
+    sassEnabled: boolean;
   };
   meta: { createdAt: string };
 };
@@ -413,6 +414,11 @@ export function normalizeSetupSettings(settings: Settings): Settings {
         ...(settings.billing?.labor ?? {}),
       },
     },
+    ui: {
+      wallpaper: settings.ui?.wallpaper ?? "w1",
+      sound: settings.ui?.sound ?? "s1",
+      sassEnabled: settings.ui?.sassEnabled ?? true,
+    },
   };
 }
 
@@ -466,6 +472,7 @@ export function defaultSetupSettings(timezone = "UTC"): Settings {
     ui: {
       wallpaper: "w1",
       sound: "s1",
+      sassEnabled: true,
     },
     meta: { createdAt: new Date().toISOString() },
   };

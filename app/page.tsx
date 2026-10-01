@@ -46,6 +46,7 @@ export default function Home() {
   const fallbackTimerRef = useRef<number | null>(null);
   const skipTimerRef = useRef<number | null>(null);
   const navigatedRef = useRef(false);
+  const forceDashboardRef = useRef(false);
 
   const goNext = () => {
     if (navigatedRef.current) return;
@@ -59,7 +60,7 @@ export default function Home() {
       audioRef.current?.pause();
     } catch {}
 
-    const setupDone = localStorage.getItem(COMPLETE_KEY) === "true";
+    const setupDone = forceDashboardRef.current || localStorage.getItem(COMPLETE_KEY) === "true";
     router.push(setupDone ? "/dashboard" : "/setup");
   };
 
@@ -131,6 +132,11 @@ export default function Home() {
 
   useEffect(() => {
     setBootMessage(randomBootMessage());
+    const bootFromInventory = new URLSearchParams(window.location.search).get("marshalInventoryBoot") === "1";
+    if (bootFromInventory) {
+      forceDashboardRef.current = true;
+      setPhase("booting");
+    }
   }, []);
 
   return (
