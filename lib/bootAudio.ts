@@ -22,10 +22,10 @@ export function prepareBootAudio() {
   }, () => { audio.volume = 1; });
 }
 
-export async function playBootAudio() {
+export async function playBootAudio(startTime = 0) {
   await prepared;
   const audio = getBootAudio();
-  audio.currentTime = 0;
+  audio.currentTime = startTime;
   audio.muted = false;
   audio.volume = 1;
   await audio.play();

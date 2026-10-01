@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getBootAudio, playBootAudio, prepareBootAudio } from "@/lib/bootAudio";
 
-type Phase = "ready" | "booting";
+type Phase = "ready" | "restart-error" | "booting";
 type BootMessage = { title: string; roll: string };
 
 const COMPLETE_KEY = "marshall_setupComplete";
@@ -89,14 +89,6 @@ export default function Home() {
         }
       }
 
-      // Start audio (must be triggered by user gesture; phase is set from a click)
-      audioRef.current = getBootAudio();
-      try {
-        await playBootAudio();
-      } catch {
-        // Audio may fail silently if the browser blocks it; video still runs
-      }
-
       // Fallback only if the ended event never arrives. Use the actual media duration when available.
       if (v) {
         const durationSeconds = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 30;
@@ -109,6 +101,7 @@ export default function Home() {
     return () => {
       if (fallbackTimerRef.current) window.clearTimeout(fallbackTimerRef.current);
       if (skipTimerRef.current) window.clearTimeout(skipTimerRef.current);
+      audioRef.current?.pause();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
@@ -136,9 +129,15 @@ export default function Home() {
     const bootFromInventory = new URLSearchParams(window.location.search).get("marshalInventoryBoot") === "1";
     if (bootFromInventory) {
       forceDashboardRef.current = true;
-      setPhase("booting");
+      setPhase("restart-error");
     }
   }, []);
+
+  useEffect(() => {
+    if (phase !== "restart-error") return;
+    const timer = window.setTimeout(() => setPhase("booting"), 3200);
+    return () => window.clearTimeout(timer);
+  }, [phase]);
 
   return (
     <main className="root">
@@ -165,6 +164,13 @@ export default function Home() {
             <span>Local browser storage</span>
           </span>
         </button>
+      ) : phase === "restart-error" ? (
+        <div className="restartScreen" role="alert">
+          <div className="restartNotice">
+            <div className="restartTitle">MARSHAL NEEDS TO RESTART DUE TO A CRITICAL ERROR</div>
+            <div className="errorCode">ERROR 2473: DUPLICATE MARSHALS</div>
+          </div>
+        </div>
       ) : (
         <div className="bootWrap">
           <video
@@ -178,6 +184,11 @@ export default function Home() {
             disablePictureInPicture
             controlsList="nodownload noplaybackrate noremoteplayback"
             onEnded={goNext}
+            onPlaying={(event) => {
+              audioRef.current = getBootAudio();
+              void playBootAudio(event.currentTarget.currentTime).catch(() => {});
+            }}
+            onWaiting={() => audioRef.current?.pause()}
           />
 
           {/* Retro-industrial overlay */}
@@ -387,6 +398,33 @@ export default function Home() {
           position: absolute;
           top: 18px;
           left: 18px;
+          right: 18px;
+        }
+        .restartScreen {
+          position: fixed;
+          inset: 0;
+          background: #000;
+          display: grid;
+          place-items: center;
+          padding: 24px;
+        }
+        .restartTitle {
+          font-size: 22px;
+          line-height: 1.4;
+        }
+        .restartNotice {
+          width: fit-content;
+          max-width: min(680px, 100%);
+          padding: 14px 16px;
+          background: rgba(0, 0, 0, 0.82);
+          border-left: 3px solid #e88a84;
+          display: grid;
+          gap: 8px;
+          overflow-wrap: anywhere;
+        }
+        .errorCode {
+          font-size: 18px;
+          color: #f1aaa5;
         }
         .micro {
           font-size: 12px;
