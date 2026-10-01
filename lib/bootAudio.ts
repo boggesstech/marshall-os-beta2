@@ -12,7 +12,9 @@ export function getBootAudio() {
 // Activate this media element during a click, then reuse it across client navigation.
 export function prepareBootAudio() {
   const audio = getBootAudio();
-  audio.volume = 0;
+  // Audible playback during the click unlocks this element for the delayed boot.
+  audio.muted = false;
+  audio.volume = 1;
   prepared = audio.play().then(() => {
     audio.pause();
     audio.currentTime = 0;
@@ -24,6 +26,7 @@ export async function playBootAudio() {
   await prepared;
   const audio = getBootAudio();
   audio.currentTime = 0;
+  audio.muted = false;
   audio.volume = 1;
   await audio.play();
 }

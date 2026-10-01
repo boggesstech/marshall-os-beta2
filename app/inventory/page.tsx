@@ -81,6 +81,7 @@ export default function InventoryPage() {
   const [savedAt, setSavedAt] = useState("");
   const [eggModal, setEggModal] = useState<{ message: string; button: string } | null>(null);
   const eggResolver = useRef<(() => void) | null>(null);
+  const savingDraft = useRef(false);
 
   useEffect(() => {
     const id = window.setTimeout(() => setItems(loadInventory()), 0);
@@ -194,8 +195,10 @@ export default function InventoryPage() {
 
     const introduced = localStorage.getItem(MARSHAL_INVENTORY_INTRODUCED_KEY) === "true" ||
       items.some((existing) => isMarshalInventoryName(existing.name));
-    localStorage.setItem(MARSHAL_INVENTORY_INTRODUCED_KEY, "true");
-    if (!introduced) await showEgg("Hey! I'm not inventory!", "Okay, okay");
+    if (!introduced) {
+      localStorage.setItem(MARSHAL_INVENTORY_INTRODUCED_KEY, "true");
+      await showEgg("Hey! I'm not inventory!", "Okay, okay");
+    }
 
     if (item.quantity === 0) {
       await showEgg("D:", "Undo");
@@ -212,6 +215,16 @@ export default function InventoryPage() {
   };
 
   const saveDraft = async () => {
+    if (savingDraft.current || eggModal) return;
+    savingDraft.current = true;
+    try {
+      await saveDraftItem();
+    } finally {
+      savingDraft.current = false;
+    }
+  };
+
+  const saveDraftItem = async () => {
     const clean = {
       ...draft,
       name: draft.name.trim(),
