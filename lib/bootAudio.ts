@@ -1,43 +1,53 @@
-let bootAudio: HTMLAudioElement | null = null;
-let prepared: Promise<void> | null = null;
-let audioContext: AudioContext | null = null;
-let bootGain: GainNode | null = null;
+let context: AudioContext | null = null;
+let soundtrack: Promise<AudioBuffer> | null = null;
+let source: AudioBufferSourceNode | null = null;
+let playback = 0;
 
-export function getBootAudio() {
-  if (!bootAudio) {
-    bootAudio = new Audio("/boot/boot-sound.mp3");
-    bootAudio.preload = "auto";
-  }
-  return bootAudio;
+function getContext() {
+  if (!context) context = new AudioContext();
+  return context;
 }
 
-// Activate this media element during a click, then reuse it across client navigation.
+function loadSoundtrack() {
+  if (!soundtrack) {
+    const audioContext = getContext();
+    soundtrack = fetch("/boot/boot-sound.mp3")
+      .then((response) => {
+        if (!response.ok) throw new Error("Boot soundtrack could not load");
+        return response.arrayBuffer();
+      })
+      .then((bytes) => audioContext.decodeAudioData(bytes))
+      .catch((error) => {
+        soundtrack = null;
+        throw error;
+      });
+  }
+  return soundtrack;
+}
+
+// Unlock the engine during the click. Loading and decoding cannot produce sound.
 export function prepareBootAudio() {
-  const audio = getBootAudio();
-  // Unlock playback during the click with a silent output until the video starts.
-  if (!audioContext && typeof window.AudioContext === "function") {
-    audioContext = new AudioContext();
-    bootGain = audioContext.createGain();
-    bootGain.gain.value = 0;
-    audioContext.createMediaElementSource(audio).connect(bootGain);
-    bootGain.connect(audioContext.destination);
-  }
-  if (bootGain) bootGain.gain.value = 0;
-  audio.muted = false;
-  audio.volume = bootGain ? 1 : 0;
-  prepared = Promise.all([audioContext?.resume(), audio.play()]).then(() => {
-    audio.pause();
-    audio.currentTime = 0;
-  }, () => { audio.pause(); });
+  void getContext().resume().catch(() => {});
+  void loadSoundtrack().catch(() => {});
 }
 
-export async function playBootAudio(startTime = 0) {
-  await prepared;
-  const audio = getBootAudio();
-  audio.currentTime = startTime;
-  audio.muted = false;
-  audio.volume = 1;
-  if (bootGain) bootGain.gain.value = 1;
-  await audioContext?.resume();
-  await audio.play();
+export function stopBootAudio() {
+  playback++;
+  source?.stop();
+  source?.disconnect();
+  source = null;
+}
+
+export async function playBootAudio(videoTime: number | (() => number) = 0) {
+  stopBootAudio();
+  const request = playback;
+  const audioContext = getContext();
+  const [buffer] = await Promise.all([loadSoundtrack(), audioContext.resume()]);
+  if (request !== playback) return;
+  const offset = typeof videoTime === "function" ? videoTime() : videoTime;
+  if (offset >= buffer.duration) return;
+  source = audioContext.createBufferSource();
+  source.buffer = buffer;
+  source.connect(audioContext.destination);
+  source.start(0, Math.max(0, offset));
 }

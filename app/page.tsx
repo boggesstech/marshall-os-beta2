@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getBootAudio, playBootAudio, prepareBootAudio } from "@/lib/bootAudio";
+import { playBootAudio, prepareBootAudio, stopBootAudio } from "@/lib/bootAudio";
 
 type Phase = "ready" | "restart-error" | "booting";
 type BootMessage = { title: string; roll: string };
@@ -43,7 +43,6 @@ export default function Home() {
   const [bootMessage, setBootMessage] = useState<BootMessage>(DEFAULT_BOOT_MESSAGE);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const fallbackTimerRef = useRef<number | null>(null);
   const skipTimerRef = useRef<number | null>(null);
   const navigatedRef = useRef(false);
@@ -58,7 +57,7 @@ export default function Home() {
     if (skipTimerRef.current) window.clearTimeout(skipTimerRef.current);
     try {
       videoRef.current?.pause();
-      audioRef.current?.pause();
+      stopBootAudio();
     } catch {}
 
     const setupDone = forceDashboardRef.current || localStorage.getItem(COMPLETE_KEY) === "true";
@@ -101,7 +100,7 @@ export default function Home() {
     return () => {
       if (fallbackTimerRef.current) window.clearTimeout(fallbackTimerRef.current);
       if (skipTimerRef.current) window.clearTimeout(skipTimerRef.current);
-      audioRef.current?.pause();
+      stopBootAudio();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
@@ -185,10 +184,10 @@ export default function Home() {
             controlsList="nodownload noplaybackrate noremoteplayback"
             onEnded={goNext}
             onPlaying={(event) => {
-              audioRef.current = getBootAudio();
-              void playBootAudio(event.currentTarget.currentTime).catch(() => {});
+              const video = event.currentTarget;
+              void playBootAudio(() => video.currentTime).catch(() => {});
             }}
-            onWaiting={() => audioRef.current?.pause()}
+            onWaiting={stopBootAudio}
           />
 
           {/* Retro-industrial overlay */}
